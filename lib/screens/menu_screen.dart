@@ -139,7 +139,7 @@ class MenuScreen extends StatelessWidget {
                 right: 0,
                 child: Center(
                   child: Text(
-                    'Equipo: Abraham Zerpa y Jesus Bethencourt\nPeriodo: 2526-3',
+                    'Equipo: Abraham Zerpa / Jesus Bethencourt\nPeriodo: 2526-3',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.pressStart2p(
                       fontSize: 8, // Letra pequeña para que quepa bien
