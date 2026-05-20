@@ -1,8 +1,9 @@
 // lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/game_provider.dart';
+import '../providers/settings_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,28 +18,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _loadDifficulty();
   }
 
-  // Carga la configuración guardada al abrir la pantalla
-  Future<void> _loadSettings() async {
+  Future<void> _loadDifficulty() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedDifficulty = prefs.getString('difficulty') ?? 'Fácil';
-    });
+    setState(
+      () => _selectedDifficulty = prefs.getString('difficulty') ?? 'Fácil',
+    );
   }
 
-  // Guarda la nueva configuración y actualiza el Provider global
   Future<void> _saveDifficulty(String difficulty) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('difficulty', difficulty);
-
-    setState(() {
-      _selectedDifficulty = difficulty;
-    });
+    setState(() => _selectedDifficulty = difficulty);
 
     if (!mounted) return;
-
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     if (difficulty == 'Fácil') gameProvider.setDifficulty(Difficulty.easy);
     if (difficulty == 'Medio') gameProvider.setDifficulty(Difficulty.medium);
@@ -47,6 +42,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = Provider.of<SettingsProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -62,41 +59,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          const Text(
-            'DIFICULTAD DEL TABLERO',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Courier New',
-            ),
-          ),
-          const SizedBox(height: 10),
+          _buildHeader('OPCIONES VISUALES'),
           Card(
             child: Column(
               children: [
-                RadioListTile<String>(
+                ListTile(
                   title: const Text(
-                    'Fácil (6x6, 10 minas)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'Tema de la App',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Courier New',
+                    ),
                   ),
+                  trailing: DropdownButton<ThemeMode>(
+                    value: settings.themeMode,
+                    items: const [
+                      DropdownMenuItem(
+                        value: ThemeMode.system,
+                        child: Text('Automático'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.light,
+                        child: Text('Claro'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.dark,
+                        child: Text('Oscuro'),
+                      ),
+                    ],
+                    onChanged: (val) => settings.setThemeMode(val!),
+                  ),
+                ),
+                SwitchListTile(
+                  title: const Text(
+                    'Animaciones',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Courier New',
+                    ),
+                  ),
+                  value: settings.animationsEnabled,
+                  onChanged: (val) => settings.setAnimationsEnabled(val),
+                ),
+                SwitchListTile(
+                  title: const Text(
+                    'Efectos de Sonido',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Courier New',
+                    ),
+                  ),
+                  value: settings.soundEnabled,
+                  onChanged: (val) => settings.setSoundEnabled(val),
+                ),
+                ListTile(
+                  title: const Text(
+                    'Estilo de Números',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Courier New',
+                    ),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: settings.numberStyle,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Clásico',
+                        child: Text('Clásico'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Colorido',
+                        child: Text('Colorido'),
+                      ),
+                      DropdownMenuItem(value: 'Retro', child: Text('Retro')),
+                      DropdownMenuItem(
+                        value: 'Minimalista',
+                        child: Text('Minimalista'),
+                      ),
+                    ],
+                    onChanged: (val) => settings.setNumberStyle(val!),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildHeader('DIFICULTAD DEL TABLERO'),
+          Card(
+            child: Column(
+              children: [
+                RadioListTile(
+                  title: const Text('Fácil (6x6)'),
                   value: 'Fácil',
                   groupValue: _selectedDifficulty,
                   onChanged: (val) => _saveDifficulty(val!),
                 ),
-                RadioListTile<String>(
-                  title: const Text(
-                    'Medio (8x8, 20 minas)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                RadioListTile(
+                  title: const Text('Medio (8x8)'),
                   value: 'Medio',
                   groupValue: _selectedDifficulty,
                   onChanged: (val) => _saveDifficulty(val!),
                 ),
-                RadioListTile<String>(
-                  title: const Text(
-                    'Difícil (10x10, 30 minas)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                RadioListTile(
+                  title: const Text('Difícil (10x10)'),
                   value: 'Difícil',
                   groupValue: _selectedDifficulty,
                   onChanged: (val) => _saveDifficulty(val!),
@@ -105,6 +170,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 5),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Courier New',
+        ),
       ),
     );
   }

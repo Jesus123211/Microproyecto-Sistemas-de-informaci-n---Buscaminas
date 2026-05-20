@@ -1,7 +1,12 @@
 // lib/screens/game_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../providers/game_provider.dart';
+import '../providers/settings_provider.dart';
 import '../models/cell_model.dart';
 
 class GameScreen extends StatelessWidget {
@@ -9,12 +14,22 @@ class GameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gameProvider = Provider.of<GameProvider>(context);
+    final settings = Provider.of<SettingsProvider>(context);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (gameProvider.gameState == GameState.won ||
+          gameProvider.gameState == GameState.lost) {
+        _showGameOverDialog(context, gameProvider, settings);
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'BUSCAMINAS',
-          style: TextStyle(
-            fontFamily: 'Courier New',
+          style: GoogleFonts.pressStart2p(
+            fontSize: 14,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -22,96 +37,97 @@ class GameScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
-          // Contador de minas restantes (Minas totales - Banderas puestas)
-          Consumer<GameProvider>(
-            builder: (context, game, child) {
-              int remaining = game.minesCount - game.flagsCount;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Center(
-                  child: Text(
-                    '💣 $remaining',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Center(
+              child: Text(
+                '💣 ${gameProvider.minesCount - gameProvider.flagsCount}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ],
       ),
-      body: Consumer<GameProvider>(
-        builder: (context, gameProvider, child) {
-          // Escuchamos si el jugador ganó o perdió para mostrar un mensaje
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (gameProvider.gameState == GameState.won ||
-                gameProvider.gameState == GameState.lost) {
-              _showGameOverDialog(context, gameProvider);
-            }
-          });
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          double boardWidth = constraints.maxWidth * 0.95;
+          if (boardWidth > 600) boardWidth = 600;
 
-          // USO DE LAYOUTBUILDER PARA RESPONSIVIDAD (Bonus del proyecto)
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              // Calculamos un tamaño máximo para que no se deforme en Desktop
-              double boardWidth = constraints.maxWidth * 0.95;
-              if (boardWidth > 600) boardWidth = 600;
-
-              return Center(
-                child: SizedBox(
-                  width: boardWidth,
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const BouncingScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: gameProvider.cols,
-                      crossAxisSpacing: 3,
-                      mainAxisSpacing: 3,
-                    ),
-                    itemCount: gameProvider.rows * gameProvider.cols,
-                    itemBuilder: (context, index) {
-                      int row = index ~/ gameProvider.cols;
-                      int col = index % gameProvider.cols;
-                      CellModel cell = gameProvider.board[row][col];
-
-                      return GestureDetector(
-                        // Clic normal para abrir celda
-                        onTap: () => gameProvider.revealCell(row, col),
-                        // Dejar presionado para poner bandera (Móvil)
-                        onLongPress: () => gameProvider.toggleFlag(row, col),
-                        // Clic derecho para poner bandera (Desktop/Web)
-                        onSecondaryTap: () => gameProvider.toggleFlag(row, col),
-                        child: _buildCell(cell, context),
-                      );
-                    },
-                  ),
+          return Center(
+            child: SizedBox(
+              width: boardWidth,
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: gameProvider.cols,
+                  crossAxisSpacing: 3,
+                  mainAxisSpacing: 3,
                 ),
-              );
-            },
+                itemCount: gameProvider.rows * gameProvider.cols,
+                itemBuilder: (context, index) {
+                  int row = index ~/ gameProvider.cols;
+                  int col = index % gameProvider.cols;
+                  CellModel cell = gameProvider.board[row][col];
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (settings.soundEnabled &&
+                          !cell.isRevealed &&
+                          !cell.isFlagged) {
+                        SystemSound.play(SystemSoundType.click);
+                      }
+                      gameProvider.revealCell(row, col);
+                    },
+                    onLongPress: () {
+                      if (settings.soundEnabled && !cell.isRevealed) {
+                        SystemSound.play(SystemSoundType.click);
+                      }
+                      gameProvider.toggleFlag(row, col);
+                    },
+                    onSecondaryTap: () {
+                      if (settings.soundEnabled && !cell.isRevealed) {
+                        SystemSound.play(SystemSoundType.click);
+                      }
+                      gameProvider.toggleFlag(row, col);
+                    },
+                    child: _buildCell(cell, context, settings),
+                  );
+                },
+              ),
+            ),
           );
         },
       ),
     );
   }
 
-  // Diseño individual de cada celda
-  Widget _buildCell(CellModel cell, BuildContext context) {
+  Widget _buildCell(
+    CellModel cell,
+    BuildContext context,
+    SettingsProvider settings,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (cell.isRevealed) {
       if (cell.isMine) {
-        return Container(
+        Widget mineWidget = Container(
           decoration: BoxDecoration(
             color: Colors.red.shade700,
             borderRadius: BorderRadius.circular(4),
           ),
           child: const Center(
-            child: Text('💥', style: TextStyle(fontSize: 24)),
+            child: Text('💥', style: TextStyle(fontSize: 22)),
           ),
         );
+        return settings.animationsEnabled
+            ? ShakeX(child: mineWidget)
+            : mineWidget;
       }
+
       return Container(
         decoration: BoxDecoration(
           color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
@@ -121,84 +137,156 @@ class GameScreen extends StatelessWidget {
         child: Center(
           child: Text(
             cell.adjacentMines > 0 ? cell.adjacentMines.toString() : '',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-              fontFamily: 'Courier New', // Estilo de número retro
-              color: _getNumberColor(cell.adjacentMines, isDark),
+            style: _getCustomNumberStyle(
+              cell.adjacentMines,
+              settings.numberStyle,
+              isDark,
             ),
           ),
         ),
       );
     }
 
-    // Celda sin revelar
-    return Container(
+    Widget unrevealedCell = Container(
       decoration: BoxDecoration(
         color: isDark ? Colors.blueGrey.shade700 : Colors.blue.shade400,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: isDark ? Colors.white24 : Colors.black26),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, offset: Offset(2, 2), blurRadius: 2),
-        ],
       ),
       child: Center(
         child: cell.isFlagged
-            ? const Text('🚩', style: TextStyle(fontSize: 22))
+            ? const Text('🚩', style: TextStyle(fontSize: 20))
             : null,
       ),
     );
+
+    return settings.animationsEnabled
+        ? FadeIn(
+            duration: const Duration(milliseconds: 300),
+            child: unrevealedCell,
+          )
+        : unrevealedCell;
   }
 
-  // Colores clásicos del buscaminas para los números
-  Color _getNumberColor(int mines, bool isDark) {
-    List<Color> lightColors = [
-      Colors.transparent,
-      Colors.blue.shade700,
-      Colors.green.shade700,
-      Colors.red.shade700,
-      Colors.purple.shade700,
-      Colors.orange.shade700,
-    ];
-    List<Color> darkColors = [
-      Colors.transparent,
-      Colors.lightBlueAccent,
-      Colors.lightGreenAccent,
-      Colors.redAccent,
-      Colors.purpleAccent,
-      Colors.orangeAccent,
-    ];
+  // CORREGIDO: Eliminados Colors.magenta y Colors.maroon que daban error
+  TextStyle _getCustomNumberStyle(int mines, String style, bool isDark) {
+    if (mines == 0) return const TextStyle();
 
-    if (mines < 0 || mines >= lightColors.length)
-      return isDark ? Colors.white : Colors.black;
-    return isDark ? darkColors[mines] : lightColors[mines];
+    switch (style) {
+      case 'Colorido':
+        List<Color> colorful = [
+          Colors.transparent,
+          Colors.pink,
+          Colors.lime.shade700,
+          Colors.cyan,
+          Colors.purpleAccent,
+          Colors.orange,
+        ];
+        return TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w900,
+          color: mines < colorful.length ? colorful[mines] : Colors.teal,
+        );
+
+      case 'Retro':
+        List<Color> retroColors = [
+          Colors.transparent,
+          Colors.blue,
+          Colors.green,
+          Colors.red,
+          Colors.yellow.shade800,
+          Colors.deepPurple,
+        ];
+        return GoogleFonts.pressStart2p(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: mines < retroColors.length ? retroColors[mines] : Colors.white,
+        );
+
+      case 'Minimalista':
+        return TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w300,
+          color: isDark ? Colors.white70 : Colors.black87,
+        );
+
+      case 'Clásico':
+      default:
+        List<Color> classicColors = [
+          Colors.transparent,
+          Colors.blue.shade900,
+          Colors.green.shade900,
+          Colors.red.shade900,
+          Colors.purple.shade900,
+          Colors.brown,
+        ];
+        return TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Courier New',
+          color: mines < classicColors.length
+              ? classicColors[mines]
+              : Colors.black,
+        );
+    }
   }
 
-  // Dialogo temporal de Fin de Partida (Game Over / Victoria)
-  void _showGameOverDialog(BuildContext context, GameProvider game) {
+  void _showGameOverDialog(
+    BuildContext context,
+    GameProvider game,
+    SettingsProvider settings,
+  ) {
     bool isWin = game.gameState == GameState.won;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: Text(isWin ? '¡VICTORIA! 🏆' : '¡GAME OVER! 💥'),
-        content: Text(
-          isWin ? 'Has limpiado el campo de minas.' : 'Pisaste una mina.',
+        backgroundColor: Colors.grey.shade900,
+        title: Text(
+          isWin ? '¡VICTORIA! 🏆' : '¡GAME OVER! 💥',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 12,
+            color: isWin ? Colors.greenAccent : Colors.redAccent,
+          ),
         ),
+        content: Text(
+          isWin
+              ? 'Has limpiado el campo con éxito.'
+              : 'Detonaste una mina oculta.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Cierra el dialogo
-              game.initializeGame(); // Reinicia el tablero
+              Navigator.pop(context);
+              game.initializeGame();
             },
-            child: const Text('Jugar de nuevo'),
+            child: Text(
+              'REINTENTAR',
+              style: TextStyle(
+                color: Colors.amber,
+                fontFamily: GoogleFonts.pressStart2p().fontFamily,
+                fontSize: 10,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context); // Vuelve al menú principal
+              Navigator.pop(context);
             },
-            child: const Text('Salir al Menú'),
+            child: Text(
+              'MENU',
+              style: TextStyle(
+                color: Colors.white70,
+                fontFamily: GoogleFonts.pressStart2p().fontFamily,
+                fontSize: 10,
+              ),
+            ),
           ),
         ],
       ),
