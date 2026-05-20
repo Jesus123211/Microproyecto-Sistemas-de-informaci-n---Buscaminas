@@ -9,8 +9,19 @@ import '../providers/game_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/cell_model.dart';
 
-class GameScreen extends StatelessWidget {
+class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  String _formatTime(int totalSeconds) {
+    int minutes = totalSeconds ~/ 60;
+    int seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +38,7 @@ class GameScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'BUSCAMINAS',
+          'TABLERO',
           style: GoogleFonts.pressStart2p(
             fontSize: 14,
             fontWeight: FontWeight.bold,
@@ -36,71 +47,103 @@ class GameScreen extends StatelessWidget {
         backgroundColor: Colors.green.shade800,
         foregroundColor: Colors.white,
         centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Center(
-              child: Text(
-                '💣 ${gameProvider.minesCount - gameProvider.flagsCount}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // PANEL SUPERIOR DE ESTADÍSTICAS EN VIVO
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber, width: 2),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Text(
+                    '⏱️ ${_formatTime(gameProvider.elapsedSeconds)}',
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 10,
+                      color: Colors.amber,
+                    ),
+                  ),
+                  Text(
+                    '🎯 CLICS: ${gameProvider.attempts}',
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 10,
+                      color: Colors.cyanAccent,
+                    ),
+                  ),
+                  Text(
+                    '🚩 ${gameProvider.flagsCount}/${gameProvider.minesCount}',
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 10,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          double boardWidth = constraints.maxWidth * 0.95;
-          if (boardWidth > 600) boardWidth = 600;
 
-          return Center(
-            child: SizedBox(
-              width: boardWidth,
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const BouncingScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: gameProvider.cols,
-                  crossAxisSpacing: 3,
-                  mainAxisSpacing: 3,
-                ),
-                itemCount: gameProvider.rows * gameProvider.cols,
-                itemBuilder: (context, index) {
-                  int row = index ~/ gameProvider.cols;
-                  int col = index % gameProvider.cols;
-                  CellModel cell = gameProvider.board[row][col];
+            // GRILLA DE JUEGO RESPONSIVA
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double boardWidth = constraints.maxWidth * 0.95;
+                  if (boardWidth > 600) boardWidth = 600;
 
-                  return GestureDetector(
-                    onTap: () {
-                      if (settings.soundEnabled &&
-                          !cell.isRevealed &&
-                          !cell.isFlagged) {
-                        SystemSound.play(SystemSoundType.click);
-                      }
-                      gameProvider.revealCell(row, col);
-                    },
-                    onLongPress: () {
-                      if (settings.soundEnabled && !cell.isRevealed) {
-                        SystemSound.play(SystemSoundType.click);
-                      }
-                      gameProvider.toggleFlag(row, col);
-                    },
-                    onSecondaryTap: () {
-                      if (settings.soundEnabled && !cell.isRevealed) {
-                        SystemSound.play(SystemSoundType.click);
-                      }
-                      gameProvider.toggleFlag(row, col);
-                    },
-                    child: _buildCell(cell, context, settings),
+                  return Center(
+                    child: SizedBox(
+                      width: boardWidth,
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const BouncingScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: gameProvider.cols,
+                          crossAxisSpacing: 3,
+                          mainAxisSpacing: 3,
+                        ),
+                        itemCount: gameProvider.rows * gameProvider.cols,
+                        itemBuilder: (context, index) {
+                          int row = index ~/ gameProvider.cols;
+                          int col = index % gameProvider.cols;
+                          CellModel cell = gameProvider.board[row][col];
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (settings.soundEnabled &&
+                                  !cell.isRevealed &&
+                                  !cell.isFlagged) {
+                                SystemSound.play(SystemSoundType.click);
+                              }
+                              gameProvider.revealCell(row, col);
+                            },
+                            onLongPress: () {
+                              if (settings.soundEnabled && !cell.isRevealed) {
+                                SystemSound.play(SystemSoundType.click);
+                              }
+                              gameProvider.toggleFlag(row, col);
+                            },
+                            onSecondaryTap: () {
+                              if (settings.soundEnabled && !cell.isRevealed) {
+                                SystemSound.play(SystemSoundType.click);
+                              }
+                              gameProvider.toggleFlag(row, col);
+                            },
+                            child: _buildCell(cell, context, settings),
+                          );
+                        },
+                      ),
+                    ),
                   );
                 },
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -168,7 +211,6 @@ class GameScreen extends StatelessWidget {
         : unrevealedCell;
   }
 
-  // CORREGIDO: Eliminados Colors.magenta y Colors.maroon que daban error
   TextStyle _getCustomNumberStyle(int mines, String style, bool isDark) {
     if (mines == 0) return const TextStyle();
 
@@ -187,7 +229,6 @@ class GameScreen extends StatelessWidget {
           fontWeight: FontWeight.w900,
           color: mines < colorful.length ? colorful[mines] : Colors.teal,
         );
-
       case 'Retro':
         List<Color> retroColors = [
           Colors.transparent,
@@ -202,14 +243,12 @@ class GameScreen extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: mines < retroColors.length ? retroColors[mines] : Colors.white,
         );
-
       case 'Minimalista':
         return TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w300,
           color: isDark ? Colors.white70 : Colors.black87,
         );
-
       case 'Clásico':
       default:
         List<Color> classicColors = [
@@ -253,7 +292,7 @@ class GameScreen extends StatelessWidget {
         ),
         content: Text(
           isWin
-              ? 'Has limpiado el campo con éxito.'
+              ? 'Record guardado en Marcadores.'
               : 'Detonaste una mina oculta.',
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white, fontSize: 16),

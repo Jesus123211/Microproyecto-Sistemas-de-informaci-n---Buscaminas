@@ -1,182 +1,222 @@
 // lib/providers/game_provider.dart
-import 'dart:math';
+import 'dart:async';
+import 'dart:math'; // Para la generación aleatoria de minas
 import 'package:flutter/material.dart';
-import '../models/cell_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-enum GameState { idle, playing, won, lost }
+import '../models/cell_model.dart';
+import '../models/high_score_model.dart';
 
 enum Difficulty { easy, medium, hard }
 
+enum GameState { idle, playing, won, lost }
+
 class GameProvider extends ChangeNotifier {
-  // Configuración de tamaños según las especificaciones del enunciado [cite: 34, 35, 36]
-  Difficulty _difficulty = Difficulty.easy;
-  int _rows = 6;
-  int _cols = 6;
-  int _minesCount = 10;
-
-  List<List<CellModel>> _board = [];
-  GameState _gameState = GameState.idle;
+  late List<List<CellModel>> _board;
+  late int _rows;
+  late int _cols;
+  late int _minesCount;
   int _flagsCount = 0;
+  GameState _gameState = GameState.idle;
+  Difficulty _difficulty = Difficulty.easy;
 
-  // Getters para que la UI pueda leer los datos de forma segura
+  int _elapsedSeconds = 0;
+  int _attempts = 0;
+  Timer? _timer;
+  bool _timerStarted = false;
+
   List<List<CellModel>> get board => _board;
-  GameState get gameState => _gameState;
-  Difficulty get difficulty => _difficulty;
   int get rows => _rows;
   int get cols => _cols;
   int get minesCount => _minesCount;
   int get flagsCount => _flagsCount;
+  GameState get gameState => _gameState;
+  Difficulty get difficulty => _difficulty;
+  int get elapsedSeconds => _elapsedSeconds;
+  int get attempts => _attempts;
 
-  // Cambiar dificultad y resetear el juego [cite: 37]
-  void setDifficulty(Difficulty diff) {
-    _difficulty = diff;
-    switch (diff) {
+  void setDifficulty(Difficulty difficulty) {
+    _difficulty = difficulty;
+    initializeGame();
+  }
+
+  void initializeGame() {
+    _timer?.cancel();
+    _elapsedSeconds = 0;
+    _attempts = 0;
+    _timerStarted = false;
+
+    // CORREGIDO: Cantidades exactas según el requerimiento del PDF
+    switch (_difficulty) {
       case Difficulty.easy:
         _rows = 6;
         _cols = 6;
-        _minesCount = 10;
+        _minesCount = 10; // 10 Minas
         break;
       case Difficulty.medium:
         _rows = 8;
         _cols = 8;
-        _minesCount = 20;
+        _minesCount = 20; // 20 Minas
         break;
       case Difficulty.hard:
         _rows = 10;
         _cols = 10;
-        _minesCount = 30;
+        _minesCount = 30; // 30 Minas
         break;
     }
-    initializeGame();
-  }
 
-  // Inicializa o reinicia el tablero completamente limpio [cite: 82]
-  void initializeGame() {
-    _gameState = GameState.idle;
     _flagsCount = 0;
+    _gameState = GameState.playing;
 
-    _board = List.generate(_rows, (r) {
-      return List.generate(_cols, (c) => CellModel(row: r, col: c));
-    });
-
+    _board = List.generate(
+      _rows,
+      (r) => List.generate(_cols, (c) => CellModel(row: r, col: c)),
+    );
+    _generateMines();
+    _countAdjacentMines();
     notifyListeners();
   }
 
-  // Se ejecuta al hacer el primer clic para asegurar que nunca se pierda en el primer intento [cite: 86]
-  void _generateMinesAndNumbers(int firstRow, int firstCol) {
-    int placedMines = 0;
-    final random = Random();
+  void _startTimer() {
+    _timerStarted = true;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_gameState == GameState.playing) {
+        _elapsedSeconds++;
+        notifyListeners();
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
 
-    while (placedMines < _minesCount) {
+  void _generateMines() {
+    int minesPlaced = 0;
+    final random = Random();
+    while (minesPlaced < _minesCount) {
       int r = random.nextInt(_rows);
       int c = random.nextInt(_cols);
-
-      // Evita poner una mina donde ya hay una, o en la primera celda presionada [cite: 84, 86]
-      if (!_board[r][c].isMine && !(r == firstRow && c == firstCol)) {
-        _board[r][c].isMine = true;
-        placedMines++;
+      if (!_board[r][c].isMine) {
+        _board[r][c] = CellModel(row: r, col: c, isMine: true);
+        minesPlaced++;
       }
     }
+  }
 
-    // Calcular números adyacentes a las minas
+  void _countAdjacentMines() {
     for (int r = 0; r < _rows; r++) {
       for (int c = 0; c < _cols; c++) {
-        if (!_board[r][c].isMine) {
-          _board[r][c].adjacentMines = _countAdjacentMines(r, c);
+        if (_board[r][c].isMine) continue;
+        int count = 0;
+        for (int i = -1; i <= 1; i++) {
+          for (int j = -1; j <= 1; j++) {
+            int nr = r + i;
+            int nc = c + j;
+            if (nr >= 0 &&
+                nr < _rows &&
+                nc >= 0 &&
+                nc < _cols &&
+                _board[nr][nc].isMine) {
+              count++;
+            }
+          }
         }
+        _board[r][c] = CellModel(row: r, col: c, adjacentMines: count);
       }
     }
   }
 
-  int _countAdjacentMines(int row, int col) {
-    int count = 0;
-    for (int dr = -1; dr <= 1; dr++) {
-      for (int dc = -1; dc <= 1; dc++) {
-        int nr = row + dr;
-        int nc = col + dc;
-        if (nr >= 0 && nr < _rows && nc >= 0 && nc < _cols) {
-          if (_board[nr][nc].isMine) count++;
-        }
-      }
-    }
-    return count;
-  }
-
-  // Acción principal: Revelar una celda [cite: 89]
-  void revealCell(int row, int col) {
-    if (_gameState == GameState.won || _gameState == GameState.lost) return;
-
-    CellModel cell = _board[row][col];
-    if (cell.isRevealed || cell.isFlagged) return;
-
-    // Si es el primer movimiento, genera el tablero de forma segura [cite: 86]
-    if (_gameState == GameState.idle) {
-      _gameState = GameState.playing;
-      _generateMinesAndNumbers(row, col);
-    }
-
-    // Si toca una mina -> PIERDE [cite: 90]
-    if (cell.isMine) {
-      cell.isRevealed = true;
-      _gameState = GameState.lost;
-      _revealAllMines(); // Muestra todas las minas al perder [cite: 103]
-      notifyListeners();
+  void revealCell(int r, int c) {
+    if (_gameState != GameState.playing ||
+        _board[r][c].isRevealed ||
+        _board[r][c].isFlagged)
       return;
+
+    if (!_timerStarted) {
+      _startTimer();
     }
 
-    // Si está vacía -> Algoritmo Flood Fill
-    if (cell.adjacentMines == 0) {
-      _floodFill(row, col);
+    _attempts++;
+    _board[r][c] = CellModel(
+      row: r,
+      col: c,
+      isMine: _board[r][c].isMine,
+      adjacentMines: _board[r][c].adjacentMines,
+      isRevealed: true,
+    );
+
+    if (_board[r][c].isMine) {
+      _gameState = GameState.lost;
+      _timer?.cancel();
+      _revealAllMines(); // ← NUEVO: Revela el mapa completo de bombas al perder
     } else {
-      cell.isRevealed = true;
+      if (_board[r][c].adjacentMines == 0) {
+        _revealAdjacentCells(r, c);
+      }
+      _checkVictory();
     }
-
-    _checkVictory();
     notifyListeners();
   }
 
-  // Algoritmo recursivo Flood Fill para abrir celdas vacías conectadas
-  void _floodFill(int row, int col) {
-    if (row < 0 || row >= _rows || col < 0 || col >= _cols) return;
-    CellModel cell = _board[row][col];
-    if (cell.isRevealed || cell.isMine || cell.isFlagged) return;
-
-    cell.isRevealed = true;
-
-    if (cell.adjacentMines == 0) {
-      for (int dr = -1; dr <= 1; dr++) {
-        for (int dc = -1; dc <= 1; dc++) {
-          _floodFill(row + dr, col + dc);
+  // ALGORITMO NUEVO: Descubre la ubicación de todas las minas restantes al fallar
+  void _revealAllMines() {
+    for (int r = 0; r < _rows; r++) {
+      for (int c = 0; c < _cols; c++) {
+        if (_board[r][c].isMine) {
+          _board[r][c] = CellModel(
+            row: r,
+            col: c,
+            isMine: true,
+            adjacentMines: _board[r][c].adjacentMines,
+            isRevealed: true, // Forzamos el renderizado visual
+            isFlagged: _board[r][c].isFlagged,
+          );
         }
       }
     }
   }
 
-  // Alternar bandera (Flag) [cite: 93]
-  void toggleFlag(int row, int col) {
-    if (_gameState != GameState.playing && _gameState != GameState.idle) return;
-    CellModel cell = _board[row][col];
-    if (cell.isRevealed) return;
-
-    cell.isFlagged = !cell.isFlagged;
-    _flagsCount += cell.isFlagged ? 1 : -1;
-    notifyListeners();
-  }
-
-  void _revealAllMines() {
-    for (var row in _board) {
-      for (var cell in row) {
-        if (cell.isMine) cell.isRevealed = true;
+  void _revealAdjacentCells(int r, int c) {
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        int nr = r + i;
+        int nc = c + j;
+        if (nr >= 0 && nr < _rows && nc >= 0 && nc < _cols) {
+          if (!_board[nr][nc].isMine &&
+              !_board[nr][nc].isRevealed &&
+              !_board[nr][nc].isFlagged) {
+            _board[nr][nc] = CellModel(
+              row: nr,
+              col: nc,
+              isMine: _board[nr][nc].isMine,
+              adjacentMines: _board[nr][nc].adjacentMines,
+              isRevealed: true,
+            );
+            if (_board[nr][nc].adjacentMines == 0) {
+              _revealAdjacentCells(nr, nc);
+            }
+          }
+        }
       }
     }
+  }
+
+  void toggleFlag(int r, int c) {
+    if (_gameState != GameState.playing || _board[r][c].isRevealed) return;
+    bool newFlagged = !_board[r][c].isFlagged;
+    _board[r][c] = CellModel(
+      row: r,
+      col: c,
+      isMine: _board[r][c].isMine,
+      adjacentMines: _board[r][c].adjacentMines,
+      isFlagged: newFlagged,
+    );
+    _flagsCount += newFlagged ? 1 : -1;
+    notifyListeners();
   }
 
   void _checkVictory() {
     bool win = true;
     for (var row in _board) {
       for (var cell in row) {
-        // Si hay una celda segura que aún no se ha revelado, no ha ganado
         if (!cell.isMine && !cell.isRevealed) {
           win = false;
           break;
@@ -184,16 +224,44 @@ class GameProvider extends ChangeNotifier {
       }
     }
     if (win) {
-      _gameState = GameState.won; // Victoria total
-      _saveHighScore(); // Guardamos la victoria localmente
+      _gameState = GameState.won;
+      _timer?.cancel();
+      _saveHighScore();
     }
   }
 
-  // Método para persistir la victoria según la dificultad
   Future<void> _saveHighScore() async {
     final prefs = await SharedPreferences.getInstance();
-    String key = 'victories_${_difficulty.name}';
-    int currentVictories = prefs.getInt(key) ?? 0;
-    await prefs.setInt(key, currentVictories + 1);
+    String key = 'high_scores_${_difficulty.name}';
+    List<String> currentRecordsJson = prefs.getStringList(key) ?? [];
+
+    final now = DateTime.now();
+    final dateStr =
+        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+
+    final newRecord = HighScoreRecord(
+      timeInSeconds: _elapsedSeconds,
+      attempts: _attempts,
+      date: dateStr,
+    );
+
+    List<HighScoreRecord> records = currentRecordsJson
+        .map((item) => HighScoreRecord.fromJson(item))
+        .toList();
+
+    records.add(newRecord);
+
+    records.sort((a, b) {
+      int cmp = a.timeInSeconds.compareTo(b.timeInSeconds);
+      if (cmp == 0) return a.attempts.compareTo(b.attempts);
+      return cmp;
+    });
+
+    if (records.length > 10) {
+      records = records.sublist(0, 10);
+    }
+
+    List<String> updatedRecordsJson = records.map((r) => r.toJson()).toList();
+    await prefs.setStringList(key, updatedRecordsJson);
   }
 }
