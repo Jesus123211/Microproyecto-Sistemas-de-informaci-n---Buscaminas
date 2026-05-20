@@ -25,7 +25,7 @@ class BuscaminasApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchamos el SettingsProvider para cambiar el tema en tiempo real
+    // Se colocó el SettingsProvider para cambiar el tema en tiempo real
     final settings = Provider.of<SettingsProvider>(context);
 
     return MaterialApp(

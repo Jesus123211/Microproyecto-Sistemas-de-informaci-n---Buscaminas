@@ -4,6 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/high_score_model.dart';
 
+/// Pantalla de Clasificación y Mejores Puntuaciones (Líderes).
+///
+/// Implementada como un [StatefulWidget] debido a que requiere gestionar la carga
+/// asíncrona de datos desde el almacenamiento local y actualizar la interfaz
+/// reactivamente tras la lectura o el reinicio de los registros.
 class HighScoresScreen extends StatefulWidget {
   const HighScoresScreen({super.key});
 
@@ -12,37 +17,51 @@ class HighScoresScreen extends StatefulWidget {
 }
 
 class _HighScoresScreenState extends State<HighScoresScreen> {
+  // Mapa estructurado para agrupar los registros de puntuación por nivel de dificultad
   Map<String, List<HighScoreRecord>> _scoresMap = {
     'easy': [],
     'medium': [],
     'hard': [],
   };
+
+  // Flag de control para manejar la interfaz de carga mientras se leen los SharedPreferences
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    // Dispara la lectura de persistencia inmediatamente al insertar el widget en el árbol de estados
     _loadAllScores();
   }
 
+  /// Recupera los récords almacenados localmente de forma asíncrona.
+  ///
+  /// Obtiene las listas serializadas en JSON para cada categoría, las deserializa
+  /// mediante el modelo [HighScoreRecord] y actualiza el estado interno de la pantalla.
   Future<void> _loadAllScores() async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, List<HighScoreRecord>> freshScores = {};
 
+    // Itera sobre las llaves de dificultad configuradas en el sistema de almacenamiento
     for (String diff in ['easy', 'medium', 'hard']) {
       List<String> listJson = prefs.getStringList('high_scores_$diff') ?? [];
+      // Mapeo y conversión de strings formateados en JSON a instancias de objetos en memoria
       freshScores[diff] = listJson
           .map((item) => HighScoreRecord.fromJson(item))
           .toList();
     }
 
+    // Actualiza el árbol visual notificando el fin del flujo asíncrono
     setState(() {
       _scoresMap = freshScores;
       _isLoading = false;
     });
   }
 
-  // BOTÓN CON DIÁLOGO DE CONFIRMACIÓN OBLIGATORIO
+  /// Despliega un diálogo de confirmación obligatorio antes de purgar los datos.
+  ///
+  /// Garantiza una experiencia de usuario segura evitando la pérdida accidental
+  /// de récords locales mediante una alerta bloqueante ([showDialog]).
   Future<void> _confirmResetScores() async {
     bool? accept = await showDialog<bool>(
       context: context,
@@ -61,14 +80,16 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () =>
+                Navigator.pop(context, false), // Retorna falso al flujo
             child: const Text(
               'CANCELAR',
               style: TextStyle(color: Colors.white70),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () =>
+                Navigator.pop(context, true), // Retorna verdadero al flujo
             child: const Text(
               'BORRAR TODO',
               style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
@@ -78,15 +99,19 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
       ),
     );
 
+    // Si el usuario confirmó la acción, purga las llaves asociadas en disco y recarga el estado
     if (accept == true) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('high_scores_easy');
       await prefs.remove('high_scores_medium');
       await prefs.remove('high_scores_hard');
-      _loadAllScores();
+      _loadAllScores(); // Reestablece la pantalla a su estado vacío
     }
   }
 
+  /// Convierte una cantidad de segundos enteros a un formato clásico de reloj 'MM:SS'.
+  ///
+  /// Utiliza división entera [~/] para extraer minutos y operador residuo [%] para los segundos.
   String _formatTime(int totalSeconds) {
     int minutes = totalSeconds ~/ 60;
     int seconds = totalSeconds % 60;
@@ -96,7 +121,8 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length:
+          3, // Tres pestañas correspondientes a las tres dificultades reglamentarias
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -110,6 +136,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
           foregroundColor: Colors.white,
           centerTitle: true,
           actions: [
+            // Acción en AppBar para realizar el reset general de puntuaciones
             IconButton(
               icon: const Icon(Icons.delete_sweep_rounded, size: 28),
               tooltip: 'Reiniciar todo',
@@ -131,6 +158,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
             ],
           ),
         ),
+        // Renderizado condicional: Muestra spinner si está cargando o el TabBarView con los datos reales
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
@@ -144,6 +172,9 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
     );
   }
 
+  /// Genera dinámicamente la tabla de posiciones o el estado vacío.
+  ///
+  /// Recibe un [List<HighScoreRecord>] de la dificultad seleccionada por el Tab.
   Widget _buildScoreTable(List<HighScoreRecord> records) {
     // COMPORTAMIENTO: Si está vacío, muestra el mensaje amigable requerido
     if (records.isEmpty) {
@@ -172,12 +203,15 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Lista optimizada con reciclaje de celdas para renderizar la tabla de marcas
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: records.length + 1, // +1 para la cabecera
+      itemCount:
+          records.length +
+          1, // +1 para inyectar de manera integrada la fila de cabecera
       itemBuilder: (context, index) {
         if (index == 0) {
-          // FILA DE CABECERA DE LA TABLA
+          // FILA DE CABECERA DE LA TABLA - Define los nombres de las columnas
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
@@ -233,22 +267,23 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
           );
         }
 
+        // Recupera el registro desplazando el índice para compensar la cabecera
         final record = records[index - 1];
         final position = index;
 
-        // FORMATO VISUAL CLARO: Filas alternas y decoraciones
+        // FORMATO VISUAL CLARO: Filas alternas y decoraciones cromáticas
         Color rowColor = (position % 2 == 0)
             ? (isDark
                   ? Colors.grey.shade800.withOpacity(0.4)
                   : Colors.grey.shade100)
             : (isDark ? Colors.transparent : Colors.white);
 
-        // Resaltar el primer lugar
+        // Resaltar el primer lugar con una tonalidad ámbar distintiva (Efecto Campeón)
         if (position == 1) {
           rowColor = Colors.amber.withOpacity(isDark ? 0.2 : 0.4);
         }
 
-        // Iconos de medallas para el Top 3
+        // Lógica de asignación de íconos de medallas para el Top 3 de la clasificación
         Widget posWidget;
         if (position == 1) {
           posWidget = const SizedBox(
@@ -266,6 +301,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
             child: Text('🥉', style: TextStyle(fontSize: 18)),
           );
         } else {
+          // Posición numérica estándar para registros del 4 en adelante
           posWidget = SizedBox(
             width: 40,
             child: Padding(
@@ -278,6 +314,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
           );
         }
 
+        // Fila de datos del récord mapeada e impresa con alineación proporcional
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
           decoration: BoxDecoration(
@@ -288,7 +325,7 @@ class _HighScoresScreenState extends State<HighScoresScreen> {
           ),
           child: Row(
             children: [
-              posWidget,
+              posWidget, // Componente de podio / posición
               Expanded(
                 child: Text(
                   _formatTime(record.timeInSeconds),

@@ -14,7 +14,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Redirecciona automáticamente al menú después de 3.5 segundos
+    // Crea una Redireccion automática al menú después de 3.5 segundos
     Future.delayed(const Duration(milliseconds: 3500), () {
       if (mounted) _navigateToMenu();
     });

@@ -12,17 +12,25 @@ import 'high_scores_screen.dart';
 import 'settings_screen.dart';
 import 'instructions_screen.dart';
 
+/// Pantalla de Menú Principal del Buscaminas.
+///
+/// Diseñada como un [StatelessWidget] para optimizar el rendimiento al tratarse
+/// de una interfaz estática con navegación fija[cite: 155]. Cumple con los requerimientos
+/// estéticos clásicos inspirados en el estilo retro de Super Mario[cite: 16, 21, 22].
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Detecta si el sistema o la configuración se encuentra en modo oscuro
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Escucha el estado global de las preferencias (animaciones y sonidos)
     final settings = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
       body: Container(
         // Fondo temático inspirado en Mario (Cielo de día o de noche)
+        // Se adapta dinámicamente según el brillo del tema seleccionado [cite: 21, 22, 40]
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -55,6 +63,7 @@ class MenuScreen extends StatelessWidget {
                             child: Text(
                               '👾 BUSCAMINAS 👾',
                               // ¡FUENTE RETO ACTIVADA!
+                              // Renderizado de tipografía retro a través de Google Fonts [cite: 29]
                               style: GoogleFonts.pressStart2p(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -66,7 +75,9 @@ class MenuScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 50),
 
-                      // Botones del menú
+                      // Botones del menú principal [cite: 23]
+
+                      // Opción: Jugar - Inicializa y lanza una nueva partida [cite: 24]
                       _buildMenuButton(
                         context,
                         '▶ JUGAR',
@@ -85,6 +96,8 @@ class MenuScreen extends StatelessWidget {
                           );
                         },
                       ),
+
+                      // Opción: Marcadores - Pantalla de mejores puntuaciones [cite: 25]
                       _buildMenuButton(
                         context,
                         '🏆 MARCADORES',
@@ -99,6 +112,8 @@ class MenuScreen extends StatelessWidget {
                           );
                         },
                       ),
+
+                      // Opción: Configuración - Panel de personalización [cite: 25]
                       _buildMenuButton(
                         context,
                         '⚙ CONFIGURACION',
@@ -113,6 +128,8 @@ class MenuScreen extends StatelessWidget {
                           );
                         },
                       ),
+
+                      // Opción: Cómo Jugar - Despliegue de instrucciones [cite: 26]
                       _buildMenuButton(
                         context,
                         '📖 COMO JUGAR',
@@ -132,7 +149,9 @@ class MenuScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              // Créditos obligatorios en la parte inferior
+
+              // Créditos obligatorios en la parte inferior [cite: 27]
+              // Posicionamiento absoluto para asegurar visibilidad constante sin romper el scroll
               Positioned(
                 bottom: 10,
                 left: 0,
@@ -159,12 +178,20 @@ class MenuScreen extends StatelessWidget {
     );
   }
 
-  // Wrapper para desactivar animaciones si el usuario lo prefiere
+  /// Wrapper de animación condicional.
+  ///
+  /// Evalúa si el parámetro [enabled] provisto por las configuraciones globales
+  /// está activo[cite: 42, 150]. Si es falso, salta el envoltorio de `animate_do` y retorna
+  /// directamente el widget hijo interno para anular el efecto visual de entrada.
   Widget _animate(bool enabled, Widget animatedWidget) {
     return enabled ? animatedWidget : (animatedWidget as dynamic).child;
   }
 
-  // Generador de botones con SONIDO y FUENTE pixel integrados
+  /// Generador centralizado de botones del menú principal.
+  ///
+  /// Automatiza el diseño consistente de los botones del menú[cite: 23], integrando
+  /// la tipografía pixel art [cite: 29][cite_start], efectos de retroalimentación de audio nativo[cite: 28],
+  /// escalado secuencial por delays [cite: 30] [cite_start]y el callback de navegación personalizado[cite: 131].
   Widget _buildMenuButton(
     BuildContext context,
     String label,
@@ -190,10 +217,12 @@ class MenuScreen extends StatelessWidget {
           ),
           onPressed: () {
             // AQUÍ ESTÁ EL TRUCO DEL SONIDO:
+            // Lee el estado actual de las configuraciones de sonido sin suscribir el widget a rediseños
             final settings = Provider.of<SettingsProvider>(
               context,
               listen: false,
             );
+            // Si los efectos están habilitados, reproduce el clic del sistema háptico/nativo [cite: 28, 41]
             if (settings.soundEnabled) {
               SystemSound.play(
                 SystemSoundType.click,
@@ -213,6 +242,7 @@ class MenuScreen extends StatelessWidget {
       ),
     );
 
+    // Retorna el botón envuelto en la animación direccional si está permitida
     return _animate(
       animEnabled,
       FadeInLeft(
