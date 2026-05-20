@@ -2,6 +2,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/cell_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum GameState { idle, playing, won, lost }
 
@@ -175,7 +176,7 @@ class GameProvider extends ChangeNotifier {
     bool win = true;
     for (var row in _board) {
       for (var cell in row) {
-        // Si hay una celda segura que aún no se ha revelado, no ha ganado [cite: 97]
+        // Si hay una celda segura que aún no se ha revelado, no ha ganado
         if (!cell.isMine && !cell.isRevealed) {
           win = false;
           break;
@@ -183,7 +184,16 @@ class GameProvider extends ChangeNotifier {
       }
     }
     if (win) {
-      _gameState = GameState.won; // Victoria total [cite: 97]
+      _gameState = GameState.won; // Victoria total
+      _saveHighScore(); // Guardamos la victoria localmente
     }
+  }
+
+  // Método para persistir la victoria según la dificultad
+  Future<void> _saveHighScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    String key = 'victories_${_difficulty.name}';
+    int currentVictories = prefs.getInt(key) ?? 0;
+    await prefs.setInt(key, currentVictories + 1);
   }
 }

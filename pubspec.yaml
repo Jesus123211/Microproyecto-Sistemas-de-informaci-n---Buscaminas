@@ -19,8 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.12.0
-
+  sdk: '>=3.11.0 <4.0.0'
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
 # consider running `flutter pub upgrade --major-versions`. Alternatively,
@@ -31,7 +30,7 @@ dependencies:
   flutter:
     sdk: flutter
   # Persistencia para High Scores y configuración [cite: 8, 145]
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.5
   # Animaciones para los menús y la UI 
   animate_do: ^3.3.4
   # Gestión de estado (recomendado para ir más allá de setState) 

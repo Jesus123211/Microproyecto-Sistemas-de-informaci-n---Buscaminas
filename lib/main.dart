@@ -1,7 +1,19 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/game_provider.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
-  runApp(const BuscaminasApp());
+  runApp(
+    // Inyectamos el proveedor en la raíz para cumplir con el manejo de estados limpio
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameProvider()..initializeGame()),
+      ],
+      child: const BuscaminasApp(),
+    ),
+  );
 }
 
 class BuscaminasApp extends StatelessWidget {
@@ -12,7 +24,7 @@ class BuscaminasApp extends StatelessWidget {
     return MaterialApp(
       title: 'Buscaminas Flutter',
       debugShowCheckedModeBanner: false,
-      // Configuración del tema claro, oscuro y automático
+      // Configuración obligatoria de temas claro, oscuro y automático
       themeMode: ThemeMode.system,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -20,7 +32,6 @@ class BuscaminasApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        // Aquí luego aplicaremos la tipografía retro [cite: 29]
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -29,8 +40,35 @@ class BuscaminasApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      // Scaffold temporal hasta crear nuestra SplashScreen [cite: 17, 18]
-      home: const Scaffold(body: Center(child: Text('Cargando Buscaminas...'))),
+      // Scaffold temporal que cambiaremos por la SplashScreen animada
+      home: const SplashScreen(),
+    );
+  }
+}
+
+class TempHomeScreen extends StatelessWidget {
+  const TempHomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Escuchamos el estado del juego para verificar que la inyección funciona
+    final gameProvider = Provider.of<GameProvider>(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Buscaminas Base'), centerTitle: true),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Tablero listo: ${gameProvider.rows}x${gameProvider.cols}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Text('Estado actual: ${gameProvider.gameState.name.toUpperCase()}'),
+          ],
+        ),
+      ),
     );
   }
 }
